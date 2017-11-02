@@ -28,49 +28,63 @@ conus <- usa %>%
   st_union()
 
 # Import the Level 3 Ecoregions ---------------------------------------------
-eco = "../data/bounds/us_eco_l3"
-ecoreg <- st_read(dsn = eco, layer = "us_eco_l3", quiet= TRUE) %>%
+ecoreg <- st_read(dsn = file.path(prefix, "/bounds/us_eco_l3"),
+                  layer = "us_eco_l3", quiet= TRUE) %>%
   st_transform(., proj_ea) %>%
   st_simplify(., preserveTopology = TRUE, dTolerance = 1000) 
-
 # Import the FPA-FOD  ---------------------------------------------
 
-fpa_wui <- st_read(dsn = file.path(fpa_out, "fpa_wui_conus.gpkg"))
+fpa_wui <- st_read(
+  dsn = file.path(fpa_out, "fpa_wui_conus.gpkg")) %>%
+  st_transform(crs = "+init=epsg:2163")
 
 # Import the PAD-US  ---------------------------------------------
 
 landowner <- st_read(
   dsn = file.path(prefix, "bounds", "public_private_lands", "pad_us", "pad_conus.gpkg"), 
-  quiet= FALSE)
-
+  quiet= FALSE) %>%
+  st_transform(crs = "+init=epsg:2163")
+landowner <- st_make_valid(landowner)
 # Import the WUI  ---------------------------------------------
 
 wui <- st_read(
   dsn = file.path(prefix, "anthro", "wui_conus.gpkg"),
-  quiet= FALSE) 
+  quiet= FALSE) %>%
+  st_transform(crs = "+init=epsg:2163")
 
 # Intersect FPA data with PAD-US -------------------------------------
 
-fire_landowner <- st_par(
-  fpa_wui, st_join, n_cores = 4, y = landowner, join = st_intersects)
+fire_landowner <- 
+  st_join(fpa_wui, landowner,
+         join = st_intersects)
+names(fire_landowner) %<>% tolower
+names(landowner) %<>% tolower
 
- # Create exploratory figs -------------------------------------------------
+# Create exploratory figs -------------------------------------------------
 
 # What are the totals of ignition type across the land owner types
-shrt_cause <- fire_landowner %>%
-  group_by(IGNITION, d_Own_Type) %>%
+area_norm <- as.data.frame(landowner) %>%
+  group_by(d_own_type) %>%
+  summarise(landarea = sum(ownarea_km2))
+
+shrt_cause <- as.data.frame(fire_landowner) %>%
+  group_by(ignition, d_own_type) %>%
   summarise(count = n()) %>%
-  ungroup()
+  ungroup() %>%
+  na.omit() %>%
+  left_join(., area_norm, by = "d_own_type") %>%
+  mutate(cnt_norm = (count/landarea)*100)
 
 shrtcause <- shrt_cause %>%
   ggplot() + 
-  geom_bar(aes(x =  reorder(d_Own_Type, -count), y = count, fill = IGNITION), stat = "identity", position = "dodge") +
+  geom_bar(aes(x =  reorder(d_own_type, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
   xlab("") + ylab("Wildfire ignition count") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
+        axis.text.x = rotatedAxisElementText(45,'x'),
         legend.position = "right")
-ggsave(file = "../Smith-Fellow/figs/Cause_Landowner.pdf", shrtcause, width = 6, height = 4, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_Landowner.pdf", shrtcause, width = 6, height = 4, dpi=1200, scale = 3, units = "cm")
 
 
 # What are the totals of ignition type across the land management types

@@ -21,7 +21,7 @@ proj_ed <- "+proj=eqdc +lat_0=39 +lon_0=-96 +lat_1=33 +lat_2=45 +x_0=0+y_0=0 +da
 
 # Clean the USA States layer ---------------------------------------------
 usa <- st_read(dsn = file.path(prefix, "bounds/state"),
-                   layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
+               layer = "cb_2016_us_state_20m", quiet= TRUE) %>%
   st_transform("+init=epsg:2163") %>%  # e.g. US National Atlas Equal Area
   filter(!(NAME %in% c("Alaska", "Hawaii", "Puerto Rico"))) %>%
   st_simplify(., preserveTopology = TRUE) 
@@ -92,8 +92,12 @@ if (!file.exists(file.path(fpa_out, "fpa_wui_conus.gpkg"))) {
 
 # Intersect FPA data with PAD-US -------------------------------------
 
-fire_landowner <- st_par(fpa_wui, st_intersection, n_cores = ncores, y = landowner)
-  
+fire_landowner <- 
+  st_par(fpa_wui, st_join, 
+         n_cores = ncores, 
+         y = landowner,
+         join = st_intersects)
+
 st_write(fire_landowner, file.path(prefix, "bounds/public_private_lands/gpkg/shrt_pad_us.gpkg"),
          driver = "GPKG")
 #
