@@ -5,7 +5,7 @@ library(lubridate)
 library(tidyverse)
 library(gridExtra)
 library(ggthemes)
-
+source("src/functions/helper_functions.R")
 # Set directories and projections -----------------------------------------
 
 #EPSG:102003 USA_Contiguous_Albers_Equal_Area_Conic
@@ -41,10 +41,12 @@ fpa_wui <- st_read(
 # Import the PAD-US  ---------------------------------------------
 
 landowner <- st_read(
-  dsn = file.path(prefix, "bounds", "public_private_lands", "pad_us", "pad_conus.gpkg"), 
+  dsn = file.path(prefix, "bounds", "public_private_lands", "pad_conus.gpkg"), 
   quiet= FALSE) %>%
   st_transform(crs = "+init=epsg:2163")
 landowner <- st_make_valid(landowner)
+names(landowner) %<>% tolower
+
 # Import the WUI  ---------------------------------------------
 
 wui <- st_read(
@@ -60,9 +62,10 @@ fire_landowner <-
 names(fire_landowner) %<>% tolower
 names(landowner) %<>% tolower
 
-fwrite(as.data.frame(fire_landowner), "../data/csv/fire_landowner.csv", sep = ",")
-fwrite(as.data.frame(fpa_wui), "../data/csv/fpa_wui.csv", sep = ",")
+fwrite(as.data.frame(fire_landowner), file.path(prefix, "csv/fire_landowner.csv"), sep = ",")
+fwrite(as.data.frame(fpa_wui), file.path(prefix, "csv/fpa_wui.csv"), sep = ",")
 
+fire_landowner <- fread(file.path(prefix, "csv/fire_landowner.csv"), sep = ",")
 # Create exploratory figs -------------------------------------------------
 
 # What are the totals of ignition type across the land owner types
@@ -86,9 +89,13 @@ shrtcause_own <- shrt_cause_own %>%
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         axis.text.x=element_text(angle=45,hjust=1),
-        legend.position = "right")
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.8, .80))
 
-ggsave(file = "results/Cause_LandownerType.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_LandownerType.jpeg", shrtcause_own, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
 
 
 # What are the totals of ignition name across the land management names
@@ -111,32 +118,40 @@ shrtcause_name <- shrt_cause_name %>%
   xlab("") + ylab("Wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "right")
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.8, .80))
 
-ggsave(file = "results/Cause_LandownerName.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_LandownerName.jpeg", shrtcause_name, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
 
-area_norm_name <- as.data.frame(landowner) %>%
+area_norm_mng <- as.data.frame(landowner) %>%
   group_by(d_mang_nam) %>%
   summarise(landarea = sum(ownarea_km2))
 
-shrt_cause_name <- as.data.frame(fire_landowner) %>%
+shrt_cause_mng <- as.data.frame(fire_landowner) %>%
   group_by(ignition, d_mang_nam) %>%
   summarise(count = n()) %>%
   ungroup() %>%
   na.omit() %>%
-  left_join(., area_norm_name, by = "d_mang_nam") %>%
+  left_join(., area_norm_mng, by = "d_mang_nam") %>%
   mutate(cnt_norm = (count/landarea)*100)
 
-shrtcause_name <- shrt_cause_name %>%
+shrtcause_mng <- shrt_cause_mng %>%
   ggplot() + 
   geom_bar(aes(x =  reorder(d_mang_nam, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
   xlab("") + ylab("Wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "right")
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.8, .80))
 
-ggsave(file = "results/Cause_MngName.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_MngName.jpeg", shrtcause_mng, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
 
 # What is the temporal 
 shrt_ff_yr <- as.data.frame(fire_landowner) %>%
@@ -148,6 +163,7 @@ shrt_ff_yr <- as.data.frame(fire_landowner) %>%
   mutate(cnt_norm = (count/landarea)*100)
 
 shrtyr <- shrt_ff_yr %>%
+  filter(d_own_type != "") %>%
   ggplot() + 
   geom_point(aes(x = discovery_year, y = cnt_norm, 
                  color = d_own_type), stat = "identity", alpha = 0.5) +
@@ -158,7 +174,11 @@ shrtyr <- shrt_ff_yr %>%
   xlab("Year") + ylab("Yearly wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "right") +
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(0.8, 0.75)) +
   facet_wrap(~ignition)
 
 ggsave(file = "results/cause_landowner_temporal.jpeg", shrtyr, width = 10, height = 6, dpi=1200, scale = 3, units = "cm")
@@ -176,7 +196,11 @@ shrtdoy <- shrt_doy %>%
   xlab("Discovery day of year") + ylab("Fire frequency") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none") +
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.15, .90)) +
   facet_wrap(~ class)
 
 ggsave("results/class_freq_doy.jpeg", shrtyr, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
@@ -196,7 +220,11 @@ shrtyr <- shrt_freq_yr %>%
   xlab("Year") + ylab("Fire frequency") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none") +
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.15, .90)) +
   facet_wrap(~ class)
 
 ggsave("results/class_freq_yr.jpeg", shrtyr, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
@@ -213,9 +241,16 @@ shrtdoycause <- shrt_doycause %>%
                color = class, fill = class), stat = "identity") +
   theme_pub()  + 
   xlab("Discovery day of year") + ylab("Wildfire ignition count") +
+  scale_colour_discrete(guide = guide_legend(direction = "horizontal", title.position = "bottom",
+                                               label.position="bottom", label.hjust = 0.5, label.vjust = 0.5,
+                                               label.theme = element_text(angle = 45))) +
+  scale_fill_discrete(guide = guide_legend(direction = "horizontal", title.position = "bottom",
+                                             label.position="bottom", label.hjust = 0.5, label.vjust = 0.5,
+                                             label.theme = element_text(angle = 45))) +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "right") + 
+        legend.title = element_blank(),
+        legend.position = c(.65, .05)) +
   facet_wrap(~ stat_cause_descr, ncol = 3, scales = "free")
 
 ggsave("results/doy_statcause_class_ff.jpeg", shrtdoycause, width = 8, height = 7, dpi=300, scale = 3, units = "cm") #saves g
@@ -235,7 +270,11 @@ shrtyr <- shrt_areaburn_yr %>%
   xlab("Year") + ylab("Area burn (km2)") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none") +
+        legend.box.background = element_rect(fill = "transparent"),
+        legend.key = element_rect(colour = "transparent", fill = "white"),
+        legend.background = element_rect(fill = "transparent"),
+        legend.title = element_blank(),
+        legend.position = c(.15, .90)) +
   facet_wrap(~ class, scales = "free")
 
 ggsave("results/class_areaburn_yr.jpeg", shrtyr, width = 8, height = 7, dpi=600, scale = 3, units = "cm") #saves g
