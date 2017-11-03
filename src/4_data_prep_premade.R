@@ -60,158 +60,160 @@ fire_landowner <-
 names(fire_landowner) %<>% tolower
 names(landowner) %<>% tolower
 
+fwrite(as.data.frame(fire_landowner), "../data/csv/fire_landowner.csv", sep = ",")
+fwrite(as.data.frame(fpa_wui), "../data/csv/fpa_wui.csv", sep = ",")
+
 # Create exploratory figs -------------------------------------------------
 
 # What are the totals of ignition type across the land owner types
-area_norm <- as.data.frame(landowner) %>%
+area_norm_own <- as.data.frame(landowner) %>%
   group_by(d_own_type) %>%
   summarise(landarea = sum(ownarea_km2))
 
-shrt_cause <- as.data.frame(fire_landowner) %>%
+shrt_cause_own <- as.data.frame(fire_landowner) %>%
   group_by(ignition, d_own_type) %>%
   summarise(count = n()) %>%
   ungroup() %>%
   na.omit() %>%
-  left_join(., area_norm, by = "d_own_type") %>%
+  left_join(., area_norm_own, by = "d_own_type") %>%
   mutate(cnt_norm = (count/landarea)*100)
 
-shrtcause <- shrt_cause %>%
+shrtcause_own <- shrt_cause_own %>%
   ggplot() + 
   geom_bar(aes(x =  reorder(d_own_type, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
   xlab("") + ylab("Wildfire ignition count") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        axis.text.x = rotatedAxisElementText(45,'x'),
+        axis.text.x=element_text(angle=45,hjust=1),
         legend.position = "right")
-ggsave(file = "results/Cause_Landowner.pdf", shrtcause, width = 6, height = 4, dpi=1200, scale = 3, units = "cm")
+
+ggsave(file = "results/Cause_Landowner.jpeg", shrtcause, width = 10, height = 4, dpi=1200, scale = 3, units = "cm")
 
 
-# What are the totals of ignition type across the land management types
-shrt_cause <- fire_landowner %>%
-  group_by(IGNITION, d_Own_Name) %>%
+# What are the totals of ignition name across the land management names
+area_norm_name <- as.data.frame(landowner) %>%
+  group_by(d_own_name) %>%
+  summarise(landarea = sum(ownarea_km2))
+
+shrt_cause_name <- as.data.frame(fire_landowner) %>%
+  group_by(ignition, d_own_name) %>%
   summarise(count = n()) %>%
-  ungroup()
+  ungroup() %>%
+  na.omit() %>%
+  left_join(., area_norm_name, by = "d_own_name") %>%
+  mutate(cnt_norm = (count/landarea)*100)
 
-shrtcause <- shrt_cause %>%
+shrtcause_name <- shrt_cause_name %>%
   ggplot() + 
-  geom_bar(aes(x =  reorder(d_Own_Name, -count), y = count, fill = IGNITION), stat = "identity", position = "dodge") +
+  geom_bar(aes(x =  reorder(d_own_name, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
   xlab("") + ylab("Wildfire ignition count") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         legend.position = "right")
-ggsave(file = "../Smith-Fellow/figs/Cause_MngType.pdf", shrtcause, width = 10, height = 4, dpi=1200, scale = 3, units = "cm")
+
+ggsave(file = "results/Cause_MngType.jpeg", shrtcause, width = 10, height = 6, dpi=1200, scale = 3, units = "cm")
 
 # What is the temporal 
-shrt_areaburn_yr <- fire_landowner %>%
-  group_by(IGNITION, FIRE_YEAR, d_Own_Type) %>%
-  summarise(count = sum(FIRE_SIZE_ha))
+shrt_ff_yr <- as.data.frame(fire_landowner) %>%
+  group_by(ignition, discovery_year, d_own_type) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  na.omit() %>%
+  left_join(., area_norm_own, by = "d_own_type") %>%
+  mutate(cnt_norm = (count/landarea)*100)
 
-shrtyr <- shrt_areaburn_yr %>%
+shrtyr <- shrt_ff_yr %>%
   ggplot() + 
-  geom_point(aes(x = FIRE_YEAR, y = count, color = d_Own_Type), stat = "identity") +
-  geom_smooth(aes(x = FIRE_YEAR, y = count, color = d_Own_Type), 
-              method="glm", method.args = list(family = "poisson")) +
+  geom_point(aes(x = discovery_year, y = cnt_norm, 
+                 color = d_own_type), stat = "identity", alpha = 0.5) +
+  geom_smooth(aes(x = discovery_year, y = cnt_norm, color = d_own_type), 
+              se = FALSE, method="glm", 
+              method.args = list(family = "poisson"), size = 0.75) +
   theme_pub()  + 
-  xlab("Year") + ylab("") +
+  xlab("Year") + ylab("% ignition per year normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         legend.position = "right") +
-  facet_wrap(~IGNITION)
+  facet_wrap(~ignition)
 
-shrt_doy <- shrt_fire %>%
-  group_by(DISCOVERY_DOY, IGNITION) %>%
+ggsave(file = "results/cause_landowner_temporal.jpeg", shrtyr, width = 10, height = 6, dpi=1200, scale = 3, units = "cm")
+
+shrt_doy <- as.data.frame(fire_landowner) %>%
+  group_by(discovery_doy, ignition, class) %>%
   summarise(count = n())
 
 shrtdoy <- shrt_doy %>%
+  transform(class = factor(class, levels=c("Urban", "WUI", "VLD", "Wildlands"))) %>%
   ggplot() + 
-  geom_bar(aes(x =  DISCOVERY_DOY, y = count, color = IGNITION, fill = IGNITION), stat = "identity") +
+  geom_bar(aes(x =  discovery_doy, y = count, 
+               color = ignition, fill = ignition), stat = "identity") +
   theme_pub()  + 
-  xlab("Discovery day of year") + ylab("") +
+  xlab("Discovery day of year") + ylab("Fire frequency") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none")
+        legend.position = "none") +
+  facet_wrap(~ class)
 
-shrt_freq_yr <- shrt_fire %>%
-  group_by(IGNITION, FIRE_YEAR) %>%
+ggsave("results/class_freq_doy.jpeg", shrtyr, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
+
+shrt_freq_yr <- as.data.frame(fire_landowner) %>%
+  group_by(ignition, class, discovery_year) %>%
   summarise(count = n())
 
 shrtyr <- shrt_freq_yr %>%
+  transform(class = factor(class, levels=c("Urban", "WUI", "VLD", "Wildlands"))) %>%
   ggplot() + 
-  geom_point(aes(x = FIRE_YEAR, y = count, color = IGNITION), stat = "identity") +
-  geom_smooth(aes(x = FIRE_YEAR, y = count, color = IGNITION), 
-              method="glm", method.args = list(family = "poisson")) +
+  geom_point(aes(x = discovery_year, y = count, 
+                 color = ignition), stat = "identity", alpha = 0.5) +
+  geom_smooth(aes(x = discovery_year, y = count, color = ignition), 
+              method="glm", method.args = list(family = "poisson"), size = 0.75) +
   theme_pub()  + 
-  xlab("Year") + ylab("") +
+  xlab("Year") + ylab("Fire frequency") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none")
+        legend.position = "none") +
+  facet_wrap(~ class)
 
-grid.arrange(shrtcause, shrtdoy, shrtyr, ncol =3)
-g <- arrangeGrob(shrtcause, shrtdoy, shrtyr, ncol = 3)
-ggsave("/Users/NateM/Google Drive/Proposal/Smith/figs/sum.png", g, width = 8, height = 5, dpi=300, scale = 3, units = "cm") #saves g
+ggsave("results/class_freq_yr.jpeg", shrtyr, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
 
 
-shrt_doycause <- shrt_fire %>%
-  group_by(DISCOVERY_DOY, STAT_CAUSE_DESCR) %>%
+shrt_doycause <- as.data.frame(fire_landowner) %>%
+  transform(class = factor(class, levels=c("Urban", "WUI", "VLD", "Wildlands"))) %>%
+  group_by(discovery_doy, class, stat_cause_descr) %>%
   summarise(count = n())
 
 shrtdoycause <- shrt_doycause %>%
   ggplot() + 
-  geom_bar(aes(x =  DISCOVERY_DOY, y = count), stat = "identity") +
+  geom_bar(aes(x =  discovery_doy, y = count, 
+               color = class, fill = class), stat = "identity") +
   theme_pub()  + 
   xlab("Discovery day of year") + ylab("Wildfire ignition count") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none") + 
-  facet_wrap(~ STAT_CAUSE_DESCR, ncol = 3, scales = "free")
+        legend.position = "right") + 
+  facet_wrap(~ stat_cause_descr, ncol = 3, scales = "free")
 
-ggsave("/Users/NateM/Google Drive/Proposal/Smith/figs/cause.png", shrtdoycause, width = 8, height = 7, dpi=300, scale = 3, units = "cm") #saves g
+ggsave("results/doy_statcause_class_ff.jpeg", shrtdoycause, width = 8, height = 7, dpi=300, scale = 3, units = "cm") #saves g
 
-p1 <- shrt_fire %>% 
-  ggplot(aes(x=LONGITUDE, y=LATITUDE)) +
-  geom_point(color = "red", size = 0.45, stroke = 0) +
-  theme_nothing(legend = TRUE) +
-  facet_wrap(~IGNITION, ncol =1)
-ggsave("/Users/NateM/Google Drive/Proposal/Smith/figs/sp_cause.png", p1, width = 4.5, height = 7, dpi=300, scale = 3, units = "cm") #saves g
-
-ggplot() +
-  geom_sf(data = ny_shp) +
-  geom_sf(data = shrt_fire)
-
-
-p2 <- ggplot() +
-  geom_point(data = shrt_fire, aes(x=LONGITUDE, y=LATITUDE), 
-             color = "red", size = 0.45, stroke = 0) +
-  geom_sf(data = ny_shp, color='black', fill = "gray99") +
-  theme_nothing(legend = TRUE) +
-  theme(plot.title = element_text(hjust = 0, size = 12),
-        strip.background = element_blank(),
-        strip.text.x = element_text(size = 10, face = "bold"),
-        strip.text.y = element_text(size = 10, face = "bold"),
-        legend.key = element_rect(fill = "white")) +
-  facet_wrap(~STAT_CAUSE_DESCR, ncol =3)
-
-ggsave("/Users/NateM/Dropbox/Professional/Proposals/Smith/figs/sp_cause_facet.png", p2, width = 6, height = 7, dpi=300, scale = 3, units = "cm") #saves g
-
-shrt_areaburn_yr <- shrt_fire %>%
-  group_by(IGNITION, FIRE_YEAR) %>%
-  summarise(count = sum(FIRE_SIZE_ha))
+shrt_areaburn_yr <- as.data.frame(fire_landowner) %>%
+  transform(class = factor(class, levels=c("Urban", "WUI", "VLD", "Wildlands"))) %>%
+  group_by(ignition, class, discovery_year) %>%
+  summarise(count = sum(fire_size_km2))
 
 shrtyr <- shrt_areaburn_yr %>%
   ggplot() + 
-  geom_point(aes(x = FIRE_YEAR, y = count, color = IGNITION), stat = "identity") +
-  geom_smooth(aes(x = FIRE_YEAR, y = count, color = IGNITION), 
-              method="glm", method.args = list(family = "poisson")) +
+  geom_point(aes(x = discovery_year, y = count, 
+                 color = ignition), stat = "identity", alpha = 0.5) +
+  geom_smooth(aes(x = discovery_year, y = count, color = ignition), 
+              method="glm", method.args = list(family = "poisson"), size = 0.75) +
   theme_pub()  + 
-  xlab("Year") + ylab("") +
+  xlab("Year") + ylab("Area burn (km2)") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
-        legend.position = "none")
+        legend.position = "none") +
+  facet_wrap(~ class, scales = "free")
 
+ggsave("results/class_areaburn_yr.jpeg", shrtyr, width = 8, height = 7, dpi=600, scale = 3, units = "cm") #saves g
 
-
-
-#
-#
