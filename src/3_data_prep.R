@@ -98,6 +98,7 @@ fire_landowner <-
          y = landowner,
          join = st_intersects)
 
+
 st_write(fire_landowner, file.path(prefix, "bounds/public_private_lands/gpkg/shrt_pad_us.gpkg"),
          driver = "GPKG")
 #
