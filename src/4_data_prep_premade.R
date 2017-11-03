@@ -82,13 +82,13 @@ shrtcause_own <- shrt_cause_own %>%
   ggplot() + 
   geom_bar(aes(x =  reorder(d_own_type, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
-  xlab("") + ylab("Wildfire ignition count") +
+  xlab("") + ylab("Wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         axis.text.x=element_text(angle=45,hjust=1),
         legend.position = "right")
 
-ggsave(file = "results/Cause_Landowner.jpeg", shrtcause, width = 10, height = 4, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_LandownerType.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
 
 
 # What are the totals of ignition name across the land management names
@@ -108,12 +108,35 @@ shrtcause_name <- shrt_cause_name %>%
   ggplot() + 
   geom_bar(aes(x =  reorder(d_own_name, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
   theme_pub()  + 
-  xlab("") + ylab("Wildfire ignition count") +
+  xlab("") + ylab("Wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         legend.position = "right")
 
-ggsave(file = "results/Cause_MngType.jpeg", shrtcause, width = 10, height = 6, dpi=1200, scale = 3, units = "cm")
+ggsave(file = "results/Cause_LandownerName.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
+
+area_norm_name <- as.data.frame(landowner) %>%
+  group_by(d_mang_nam) %>%
+  summarise(landarea = sum(ownarea_km2))
+
+shrt_cause_name <- as.data.frame(fire_landowner) %>%
+  group_by(ignition, d_mang_nam) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  na.omit() %>%
+  left_join(., area_norm_name, by = "d_mang_nam") %>%
+  mutate(cnt_norm = (count/landarea)*100)
+
+shrtcause_name <- shrt_cause_name %>%
+  ggplot() + 
+  geom_bar(aes(x =  reorder(d_mang_nam, -cnt_norm), y = cnt_norm, fill = ignition), stat = "identity", position = "dodge") +
+  theme_pub()  + 
+  xlab("") + ylab("Wildfire ignition count normalized by land area") +
+  theme(axis.title = element_text(face = "bold"),
+        strip.text = element_text(size = 10, face = "bold"),
+        legend.position = "right")
+
+ggsave(file = "results/Cause_MngName.jpeg", shrtcause, width = 10, height = 8, dpi=1200, scale = 3, units = "cm")
 
 # What is the temporal 
 shrt_ff_yr <- as.data.frame(fire_landowner) %>%
@@ -132,7 +155,7 @@ shrtyr <- shrt_ff_yr %>%
               se = FALSE, method="glm", 
               method.args = list(family = "poisson"), size = 0.75) +
   theme_pub()  + 
-  xlab("Year") + ylab("% ignition per year normalized by land area") +
+  xlab("Year") + ylab("Yearly wildfire ignition count normalized by land area") +
   theme(axis.title = element_text(face = "bold"),
         strip.text = element_text(size = 10, face = "bold"),
         legend.position = "right") +
