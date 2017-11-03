@@ -203,7 +203,7 @@ shrtdoy <- shrt_doy %>%
         legend.position = c(.15, .90)) +
   facet_wrap(~ class)
 
-ggsave("results/class_freq_doy.jpeg", shrtyr, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
+ggsave("results/class_freq_doy.jpeg", shrtdoy, width = 5, height = 5, dpi=600, scale = 3, units = "cm") #saves g
 
 shrt_freq_yr <- as.data.frame(fire_landowner) %>%
   group_by(ignition, class, discovery_year) %>%
